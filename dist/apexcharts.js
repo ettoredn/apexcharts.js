@@ -1,6 +1,6 @@
 /*!
- * ApexCharts v3.36.2
- * (c) 2018-2022 ApexCharts
+ * ApexCharts v3.36.3
+ * (c) 2018-2023 ApexCharts
  * Released under the MIT License.
  */
 (function (global, factory) {
@@ -15697,7 +15697,11 @@
       }
     }, {
       key: "getElMarkers",
-      value: function getElMarkers() {
+      value: function getElMarkers(capturedSeries) {
+        if (typeof capturedSeries == 'number') {
+          return this.w.globals.dom.baseEl.querySelectorAll(".apexcharts-series[data\\:realIndex='".concat(capturedSeries, "'] .apexcharts-series-markers"));
+        }
+
         return this.w.globals.dom.baseEl.querySelectorAll(' .apexcharts-series-markers');
       }
     }, {
@@ -15720,8 +15724,8 @@
       }
     }, {
       key: "hasMarkers",
-      value: function hasMarkers() {
-        var markers = this.getElMarkers();
+      value: function hasMarkers(capturedSeries) {
+        var markers = this.getElMarkers(capturedSeries);
         return markers.length > 0;
       }
     }, {
@@ -16610,7 +16614,7 @@
       }
     }, {
       key: "moveStickyTooltipOverBars",
-      value: function moveStickyTooltipOverBars(j) {
+      value: function moveStickyTooltipOverBars(j, capturedSeries) {
         var w = this.w;
         var ttCtx = this.ttCtx;
         var barLen = w.globals.columnSeries ? w.globals.columnSeries.length : w.globals.series.length;
@@ -16622,13 +16626,19 @@
         }
 
         var jBar = w.globals.dom.baseEl.querySelector(".apexcharts-bar-series .apexcharts-series[rel='".concat(i, "'] path[j='").concat(j, "'], .apexcharts-candlestick-series .apexcharts-series[rel='").concat(i, "'] path[j='").concat(j, "'], .apexcharts-boxPlot-series .apexcharts-series[rel='").concat(i, "'] path[j='").concat(j, "'], .apexcharts-rangebar-series .apexcharts-series[rel='").concat(i, "'] path[j='").concat(j, "']"));
+
+        if (!jBar && typeof capturedSeries == 'number') {
+          // Try with captured series index
+          jBar = w.globals.dom.baseEl.querySelector(".apexcharts-bar-series .apexcharts-series[data\\:realIndex='".concat(capturedSeries, "'] path[j='").concat(j, "'],\n        .apexcharts-candlestick-series .apexcharts-series[data\\:realIndex='").concat(capturedSeries, "'] path[j='").concat(j, "'],\n        .apexcharts-boxPlot-series .apexcharts-series[data\\:realIndex='").concat(capturedSeries, "'] path[j='").concat(j, "'],\n        .apexcharts-rangebar-series .apexcharts-series[data\\:realIndex='").concat(capturedSeries, "'] path[j='").concat(j, "']"));
+        }
+
         var bcx = jBar ? parseFloat(jBar.getAttribute('cx')) : 0;
         var bcy = jBar ? parseFloat(jBar.getAttribute('cy')) : 0;
         var bw = jBar ? parseFloat(jBar.getAttribute('barWidth')) : 0;
         var bh = jBar ? parseFloat(jBar.getAttribute('barHeight')) : 0;
         var elGrid = ttCtx.getElGrid();
         var seriesBound = elGrid.getBoundingClientRect();
-        var isBoxOrCandle = jBar.classList.contains('apexcharts-candlestick-area') || jBar.classList.contains('apexcharts-boxPlot-area');
+        var isBoxOrCandle = jBar && (jBar.classList.contains('apexcharts-candlestick-area') || jBar.classList.contains('apexcharts-boxPlot-area'));
 
         if (w.globals.isXNumeric) {
           if (jBar && !isBoxOrCandle) {
@@ -17942,6 +17952,7 @@
         });
         var j = capj.j;
         var capturedSeries = capj.capturedSeries;
+        if (w.globals.collapsedSeriesIndices.includes(capturedSeries)) capturedSeries = null;
         var bounds = opt.elGrid.getBoundingClientRect();
 
         if (capj.hoverX < 0 || capj.hoverX > bounds.width) {
@@ -17955,7 +17966,10 @@
           // couldn't capture any series. check if shared X is same,
           // if yes, draw a grouped tooltip
           if (this.tooltipUtil.isXoverlap(j) || w.globals.isBarHorizontal) {
-            this.create(e, this, 0, j, opt.ttItems);
+            var firstVisibleSeries = w.globals.series.findIndex(function (s, i) {
+              return !w.globals.collapsedSeriesIndices.includes(i);
+            });
+            this.create(e, this, firstVisibleSeries, j, opt.ttItems);
           }
         }
       }
@@ -17981,7 +17995,10 @@
           }
         } else {
           if (this.tooltipUtil.isXoverlap(j)) {
-            this.create(e, this, 0, j, opt.ttItems);
+            var firstVisibleSeries = w.globals.series.findIndex(function (s, i) {
+              return !w.globals.collapsedSeriesIndices.includes(i);
+            });
+            this.create(e, this, firstVisibleSeries, j, opt.ttItems);
           }
         }
       }
@@ -18068,7 +18085,7 @@
         }
 
         if (shared === null) shared = this.tConfig.shared;
-        var hasMarkers = this.tooltipUtil.hasMarkers();
+        var hasMarkers = this.tooltipUtil.hasMarkers(capturedSeries);
         var bars = this.tooltipUtil.getElBars();
 
         if (w.config.legend.tooltipHoverFormatter) {
@@ -18116,9 +18133,7 @@
             } else {
               ttCtx.tooltipPosition.moveDynamicPointsOnHover(j);
             }
-          }
-
-          if (this.tooltipUtil.hasBars()) {
+          } else if (this.tooltipUtil.hasBars()) {
             this.barSeriesHeight = this.tooltipUtil.getBarsHeight(bars);
 
             if (this.barSeriesHeight > 0) {
@@ -18127,7 +18142,7 @@
               var paths = w.globals.dom.Paper.select(".apexcharts-bar-area[j='".concat(j, "']")); // de-activate first
 
               this.deactivateHoverFilter();
-              this.tooltipPosition.moveStickyTooltipOverBars(j);
+              this.tooltipPosition.moveStickyTooltipOverBars(j, capturedSeries);
 
               for (var b = 0; b < paths.length; b++) {
                 graphics.pathMouseEnter(paths[b]);
@@ -18143,7 +18158,7 @@
           });
 
           if (this.tooltipUtil.hasBars()) {
-            ttCtx.tooltipPosition.moveStickyTooltipOverBars(j);
+            ttCtx.tooltipPosition.moveStickyTooltipOverBars(j, capturedSeries);
           }
 
           if (hasMarkers) {
@@ -20114,11 +20129,12 @@
 
     _createClass(BoxCandleStick, [{
       key: "draw",
-      value: function draw(series, seriesIndex) {
+      value: function draw(series, ctype, seriesIndex) {
         var _this = this;
 
         var w = this.w;
         var graphics = new Graphics(this.ctx);
+        var type = w.globals.comboCharts ? ctype : w.config.chart.type;
         var fill = new Fill(this.ctx);
         this.candlestickOptions = this.w.config.plotOptions.candlestick;
         this.boxOptions = this.w.config.plotOptions.boxPlot;
@@ -20129,7 +20145,7 @@
         this.yRatio = coreUtils.getLogYRatios(this.yRatio);
         this.barHelpers.initVariables(series);
         var ret = graphics.group({
-          class: "apexcharts-".concat(w.config.chart.type, "-series apexcharts-plot-series")
+          class: "apexcharts-".concat(type, "-series apexcharts-plot-series")
         });
 
         var _loop = function _loop(i) {
@@ -25372,11 +25388,11 @@
           }
 
           if (candlestickSeries.series.length > 0) {
-            elGraph.push(boxCandlestick.draw(candlestickSeries.series, candlestickSeries.i));
+            elGraph.push(boxCandlestick.draw(candlestickSeries.series, 'candlestick', candlestickSeries.i));
           }
 
           if (boxplotSeries.series.length > 0) {
-            elGraph.push(boxCandlestick.draw(boxplotSeries.series, boxplotSeries.i));
+            elGraph.push(boxCandlestick.draw(boxplotSeries.series, 'boxPlot', boxplotSeries.i));
           }
 
           if (rangeBarSeries.series.length > 0) {
@@ -25416,12 +25432,12 @@
 
             case 'candlestick':
               var candleStick = new BoxCandleStick(this.ctx, xyRatios);
-              elGraph = candleStick.draw(gl.series);
+              elGraph = candleStick.draw(gl.series, 'candlestick');
               break;
 
             case 'boxPlot':
               var boxPlot = new BoxCandleStick(this.ctx, xyRatios);
-              elGraph = boxPlot.draw(gl.series);
+              elGraph = boxPlot.draw(gl.series, 'boxPlot');
               break;
 
             case 'rangeBar':
